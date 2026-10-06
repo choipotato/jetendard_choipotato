@@ -1,4 +1,4 @@
-"""Download and extract upstream font files for Jetendard."""
+"""Download and extract upstream font files for JetBrainsMono Potato."""
 
 from __future__ import annotations
 
@@ -18,10 +18,15 @@ from jetendard.builder import DEFAULT_VARIANTS, SUPPORTED_WEIGHTS  # noqa: E402
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
+JETBRAINS_MONO_VERSION = "2.304"
 NERD_FONTS_VERSION = "v3.4.0"
 PRETENDARD_VERSION = "1.3.9"
 
 JETBRAINS_MONO_URL = (
+    "https://github.com/JetBrains/JetBrainsMono/releases/download/"
+    f"v{JETBRAINS_MONO_VERSION}/JetBrainsMono-{JETBRAINS_MONO_VERSION}.zip"
+)
+NERD_FONTS_URL = (
     f"https://github.com/ryanoasis/nerd-fonts/releases/download/"
     f"{NERD_FONTS_VERSION}/JetBrainsMono.zip"
 )
@@ -33,6 +38,7 @@ PRETENDARD_URL = (
 UPSTREAM_DIR = Path("upstream")
 ARCHIVE_DIR = UPSTREAM_DIR / "_archives"
 JETBRAINS_DIR = UPSTREAM_DIR / "jetbrainsmono"
+NERD_FONTS_DIR = UPSTREAM_DIR / "nerd-fonts"
 PRETENDARD_DIR = UPSTREAM_DIR / "pretendard"
 OPTIONAL_PRETENDARD_FILES = ("PretendardVariable.ttf",)
 
@@ -123,17 +129,23 @@ def extract_expected_fonts(
 def write_sources_note() -> None:
     """Write a small note documenting the downloaded upstream versions."""
     jetbrains_files = sorted({variant.latin_filename for variant in DEFAULT_VARIANTS})
+    nerd_files = sorted({variant.nerd_filename for variant in DEFAULT_VARIANTS})
     pretendard_files = [f"Pretendard-{weight}.ttf" for weight in SUPPORTED_WEIGHTS]
     note = "\n".join(
         [
-            "# Jetendard Upstream Sources",
+            "# JetBrainsMono Potato Upstream Sources",
             "",
+            f"- JetBrains Mono: {JETBRAINS_MONO_VERSION}",
             f"- Nerd Fonts JetBrainsMono: {NERD_FONTS_VERSION}",
             f"- Pretendard: {PRETENDARD_VERSION}",
             "",
-            "## Extracted JetBrainsMono Nerd Font Mono Files",
+            "## Extracted JetBrains Mono NL Files",
             "",
             *[f"- `{filename}`" for filename in jetbrains_files],
+            "",
+            "## Extracted Nerd Font Symbol Sources",
+            "",
+            *[f"- `{filename}`" for filename in nerd_files],
             "",
             "## Extracted Pretendard Files",
             "",
@@ -149,17 +161,21 @@ def write_sources_note() -> None:
 
 
 def main() -> int:
-    """Download upstream JetBrainsMono Nerd Font Mono and Pretendard files."""
-    jetbrains_archive = ARCHIVE_DIR / f"JetBrainsMono-{NERD_FONTS_VERSION}.zip"
+    """Download JetBrains Mono NL, Nerd Font symbol sources, and Pretendard."""
+    jetbrains_archive = ARCHIVE_DIR / f"JetBrainsMono-{JETBRAINS_MONO_VERSION}.zip"
+    nerd_archive = ARCHIVE_DIR / f"JetBrainsMono-NerdFonts-{NERD_FONTS_VERSION}.zip"
     pretendard_archive = ARCHIVE_DIR / f"Pretendard-{PRETENDARD_VERSION}.zip"
 
     jetbrains_expected = {variant.latin_filename for variant in DEFAULT_VARIANTS}
+    nerd_expected = {variant.nerd_filename for variant in DEFAULT_VARIANTS}
     pretendard_expected = {f"Pretendard-{weight}.ttf" for weight in SUPPORTED_WEIGHTS}
 
     try:
         download_file(JETBRAINS_MONO_URL, jetbrains_archive)
+        download_file(NERD_FONTS_URL, nerd_archive)
         download_file(PRETENDARD_URL, pretendard_archive)
         extract_expected_fonts(jetbrains_archive, JETBRAINS_DIR, jetbrains_expected)
+        extract_expected_fonts(nerd_archive, NERD_FONTS_DIR, nerd_expected)
         extract_expected_fonts(
             pretendard_archive,
             PRETENDARD_DIR,
@@ -171,7 +187,7 @@ def main() -> int:
         logger.exception("Failed to prepare upstream resources")
         return 1
 
-    logger.info("All upstream resources are ready under %s", UPSTREAM_DIR)
+    logger.info("All JetBrainsMono Potato upstream resources are ready under %s", UPSTREAM_DIR)
     return 0
 
 
