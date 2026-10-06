@@ -1,4 +1,4 @@
-"""Font merging and fitting logic for Jetendard."""
+"""Font merging and fitting logic for JetBrainsMono Potato."""
 
 from __future__ import annotations
 
@@ -94,6 +94,7 @@ class MergeStats:
     """Summary of a font merge."""
 
     copied_count: int
+    symbol_count: int
     capped_count: int
     latin_advance: int
     korean_advance: int
@@ -102,12 +103,13 @@ class MergeStats:
 
 @dataclass(frozen=True)
 class FontVariant:
-    """One buildable Jetendard output variant."""
+    """One buildable JetBrainsMono Potato output variant."""
 
     weight_name: str
     css_weight: int
     style: str
     latin_filename: str
+    nerd_filename: str
     cjk_weight_name: str
     output_suffix: str
     subfamily_name: str
@@ -161,7 +163,8 @@ def make_font_variant(weight_name: str, style: str) -> FontVariant:
         weight_name=weight_name,
         css_weight=WEIGHT_TO_CSS[weight_name],
         style=style,
-        latin_filename=f"JetBrainsMonoNerdFontMono-{latin_suffix}.ttf",
+        latin_filename=f"JetBrainsMonoNL-{latin_suffix}.ttf",
+        nerd_filename=f"JetBrainsMonoNerdFontMono-{latin_suffix}.ttf",
         cjk_weight_name=weight_name,
         output_suffix=output_suffix,
         subfamily_name=subfamily_name,
@@ -599,22 +602,75 @@ def add_hangul_ccmp_features(font: TTFont) -> None:
     logger.info("Appended Hangul ccmp lookup at GSUB lookup index %d", lookup_index)
 
 
+
+def copy_missing_encoded_glyphs(target_font: TTFont, source_font: TTFont) -> int:
+    """Copy encoded glyphs missing from target, without importing source GSUB/ligatures."""
+    target_cmap = target_font.getBestCmap()
+    source_cmap = source_font.getBestCmap()
+    if target_cmap is None or source_cmap is None:
+        return 0
+
+    target_glyf = target_font["glyf"]
+    target_hmtx = target_font["hmtx"]
+    source_glyph_set = source_font.getGlyphSet()
+    source_hmtx = source_font["hmtx"]
+    target_order = target_font.getGlyphOrder()
+    target_order_set = set(target_order)
+
+    target_upm = cast("Any", target_font["head"]).unitsPerEm
+    source_upm = cast("Any", source_font["head"]).unitsPerEm
+    scale = target_upm / source_upm
+
+    copied = 0
+    for codepoint, source_glyph_name in sorted(source_cmap.items()):
+        if codepoint in target_cmap or source_glyph_name not in source_glyph_set:
+            continue
+
+        target_glyph_name = f"nf{codepoint:04X}"
+        suffix = 1
+        while target_glyph_name in target_glyf.glyphs:
+            target_glyph_name = f"nf{codepoint:04X}.{suffix}"
+            suffix += 1
+
+        source_pen = DecomposingRecordingPen(source_glyph_set)
+        source_glyph_set[source_glyph_name].draw(source_pen)
+
+        glyph_pen = TTGlyphPen(None)
+        transform_pen = TransformPen(glyph_pen, (scale, 0, 0, scale, 0, 0))
+        source_pen.replay(transform_pen)
+
+        target_glyf[target_glyph_name] = glyph_pen.glyph()
+        advance, lsb = source_hmtx.metrics[source_glyph_name]
+        target_hmtx.metrics[target_glyph_name] = (round(advance * scale), round(lsb * scale))
+        update_unicode_cmaps(target_font, codepoint, target_glyph_name)
+
+        if target_glyph_name not in target_order_set:
+            target_order.append(target_glyph_name)
+            target_order_set.add(target_glyph_name)
+        copied += 1
+
+    sync_glyph_order(target_font, target_glyf, target_order)
+    return copied
+
+
 def merge_fonts(
     latin_path: str | Path,
     cjk_path: str | Path,
     output_path: str | Path,
     family_name: str,
     subfamily_name: str,
+    symbol_path: str | Path | None = None,
     korean_scale: float = DEFAULT_KOREAN_SCALE,
     *,
     typographic_subfamily_name: str | None = None,
     is_italic: bool = False,
     css_weight: int | None = None,
 ) -> MergeStats:
-    """Merge JetBrainsMono Nerd Font Mono with Pretendard CJK glyphs."""
+    """Merge JetBrainsMono NL, Pretendard CJK glyphs, and Nerd Font symbols."""
     logger.info("Merging %s + %s -> %s", latin_path, cjk_path, output_path)
     latin_font = TTFont(str(latin_path))
     cjk_font = TTFont(str(cjk_path))
+    symbol_font = TTFont(str(symbol_path)) if symbol_path is not None else None
 
     latin_head = cast("Any", latin_font["head"])
     cjk_head = cast("Any", cjk_font["head"])
@@ -699,6 +755,12 @@ def merge_fonts(
         copied_count += 1
 
     glyph_order = sync_glyph_order(latin_font, glyf_table, glyph_order)
+
+    symbol_count = 0
+    if symbol_font is not None:
+        symbol_count = copy_missing_encoded_glyphs(latin_font, symbol_font)
+        logger.info("Copied %d Nerd Font symbols without source GSUB features", symbol_count)
+
     merge_os2_ranges(latin_font, cjk_font)
     enforce_monospace_flags(latin_font)
     add_hangul_ccmp_features(latin_font)
@@ -741,9 +803,12 @@ def merge_fonts(
 
     latin_font.close()
     cjk_font.close()
+    if symbol_font is not None:
+        symbol_font.close()
 
     return MergeStats(
         copied_count=copied_count,
+        symbol_count=symbol_count,
         capped_count=len(capped_codepoints),
         latin_advance=latin_advance,
         korean_advance=korean_advance,
