@@ -1,4 +1,4 @@
-"""Command-line interface for Jetendard."""
+"""Command-line interface for JetBrainsMono Potato."""
 
 from __future__ import annotations
 
@@ -60,14 +60,19 @@ def build_parser() -> argparse.ArgumentParser:
     """Build the Jetendard CLI parser."""
     parser = argparse.ArgumentParser(
         description=(
-            "Build Jetendard from ligature-enabled JetBrainsMono Nerd Font Mono "
-            "and Pretendard Korean glyphs."
+            "Build JetBrainsMono Potato from no-ligature JetBrains Mono NL, "
+            "Pretendard Korean glyphs, and Nerd Font symbols."
         )
     )
     parser.add_argument(
         "--latin-dir",
         default="upstream/jetbrainsmono",
-        help="Directory containing JetBrainsMonoNerdFontMono TTF files.",
+        help="Directory containing official JetBrainsMonoNL TTF files.",
+    )
+    parser.add_argument(
+        "--symbol-dir",
+        default="upstream/nerd-fonts",
+        help="Directory containing JetBrainsMonoNerdFontMono TTF files used only for symbols.",
     )
     parser.add_argument(
         "--cjk-dir",
@@ -81,7 +86,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--family-name",
-        default="Jetendard",
+        default="JetBrainsMono Potato",
         help="Generated font family name.",
     )
     parser.add_argument(
@@ -123,7 +128,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--all",
         action="store_true",
-        help="Build the full 16-variant Jetendard coverage matrix.",
+        help="Build the full 16-variant JetBrainsMono Potato coverage matrix.",
     )
     parser.add_argument(
         "--korean-italic-mode",
@@ -212,6 +217,7 @@ def main(argv: list[str] | None = None) -> int:
         parser.error(str(exc))
 
     latin_dir = Path(args.latin_dir)
+    symbol_dir = Path(args.symbol_dir)
     cjk_dir = Path(args.cjk_dir)
     base_output_dir = Path(args.output_dir)
     ttf_dir = base_output_dir / "ttf"
@@ -224,12 +230,13 @@ def main(argv: list[str] | None = None) -> int:
 
     stem = family_file_stem(args.family_name)
     logger.info(
-        "Starting Jetendard build for variants: %s",
+        "Starting JetBrainsMono Potato build for variants: %s",
         ", ".join(variant.output_suffix for variant in variants),
     )
 
     for variant in variants:
         latin_path = latin_dir / variant.latin_filename
+        symbol_path = symbol_dir / variant.nerd_filename
         cjk_path = cjk_dir / f"Pretendard-{variant.cjk_weight_name}.ttf"
         output_path_ttf = ttf_dir / f"{stem}-{variant.output_suffix}.ttf"
         output_path_otf = otf_dir / f"{stem}-{variant.output_suffix}.otf"
@@ -237,7 +244,11 @@ def main(argv: list[str] | None = None) -> int:
 
         if not latin_path.exists():
             logger.error("Latin font file not found: %s", latin_path)
-            logger.error("Run `make download` to fetch JetBrainsMonoNerdFontMono files.")
+            logger.error("Run `make download` to fetch official JetBrains Mono NL files.")
+            return 1
+        if not symbol_path.exists():
+            logger.error("Nerd Font symbol source not found: %s", symbol_path)
+            logger.error("Run `make download` to fetch JetBrainsMonoNerdFontMono symbol sources.")
             return 1
         if not cjk_path.exists():
             logger.error("CJK font file not found: %s", cjk_path)
@@ -251,15 +262,17 @@ def main(argv: list[str] | None = None) -> int:
                 output_path=output_path_ttf,
                 family_name=args.family_name,
                 subfamily_name=variant.subfamily_name,
+                symbol_path=symbol_path,
                 korean_scale=args.korean_scale,
                 typographic_subfamily_name=variant.typographic_subfamily_name,
                 is_italic=variant.is_italic,
                 css_weight=variant.css_weight,
             )
             logger.info(
-                "%s: copied=%d capped=%d latin_advance=%d korean_advance=%d",
+                "%s: cjk=%d symbols=%d capped=%d latin_advance=%d korean_advance=%d",
                 variant.output_suffix,
                 stats.copied_count,
+                stats.symbol_count,
                 stats.capped_count,
                 stats.latin_advance,
                 stats.korean_advance,
@@ -281,7 +294,7 @@ def main(argv: list[str] | None = None) -> int:
             return 1
 
     write_css(web_dir, args.family_name, variants)
-    logger.info("All requested Jetendard variants built successfully")
+    logger.info("All requested JetBrainsMono Potato variants built successfully")
     return 0
 
 
