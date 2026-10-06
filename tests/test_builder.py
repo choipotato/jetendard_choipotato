@@ -22,6 +22,7 @@ from jetendard.builder import (
     merge_fonts,
     update_font_names,
     update_style_metadata,
+    update_unicode_cmaps,
 )
 
 
@@ -157,6 +158,32 @@ def test_calculate_korean_target_width() -> None:
 def test_calculate_korean_target_width_rejects_invalid_advance() -> None:
     with pytest.raises(ValueError, match="positive"):
         calculate_korean_target_width(0)
+
+
+def test_update_unicode_cmaps_skips_supplementary_codepoints_in_format4() -> None:
+    font = TTFont()
+    cmap = newTable("cmap")
+    cmap.tableVersion = 0
+
+    bmp = CmapSubtable.newSubtable(4)
+    bmp.platformID = 3
+    bmp.platEncID = 1
+    bmp.language = 0
+    bmp.cmap = {}
+
+    ucs4 = CmapSubtable.newSubtable(12)
+    ucs4.platformID = 3
+    ucs4.platEncID = 10
+    ucs4.language = 0
+    ucs4.cmap = {}
+
+    cmap.tables = [bmp, ucs4]
+    font["cmap"] = cmap
+
+    update_unicode_cmaps(font, 0xF0001, "nfF0001")
+
+    assert 0xF0001 not in bmp.cmap
+    assert ucs4.cmap[0xF0001] == "nfF0001"
 
 
 def test_fitted_transform_centers_uncapped_glyph() -> None:
