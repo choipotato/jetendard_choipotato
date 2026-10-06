@@ -20,7 +20,7 @@ download:
 	uv run python download_upstream.py
 
 ensure-upstream:
-	@if [ ! -d "upstream/jetbrainsmono" ] || [ ! -d "upstream/pretendard" ]; then \
+	@if [ ! -d "upstream/jetbrainsmono" ] || [ ! -d "upstream/nerd-fonts" ] || [ ! -d "upstream/pretendard" ]; then \
 		echo "Upstream font resources not found. Downloading..."; \
 		$(MAKE) download; \
 	fi
