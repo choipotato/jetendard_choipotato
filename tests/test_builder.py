@@ -104,7 +104,8 @@ def test_regular_italic_variant_uses_special_source_filename() -> None:
 
     assert variant.output_suffix == "Italic"
     assert variant.subfamily_name == "Italic"
-    assert variant.latin_filename == "JetBrainsMonoNerdFontMono-Italic.ttf"
+    assert variant.latin_filename == "JetBrainsMonoNL-Italic.ttf"
+    assert variant.nerd_filename == "JetBrainsMonoNerdFontMono-Italic.ttf"
     assert variant.cjk_weight_name == "Regular"
     assert variant.css_weight == 400
     assert variant.is_italic is True
@@ -255,9 +256,10 @@ def test_enforce_monospace_flags() -> None:
 
 
 def test_integration_merge_skips_without_upstream_fonts(tmp_path: Path) -> None:
-    latin_path = Path("upstream/jetbrainsmono/JetBrainsMonoNerdFontMono-Regular.ttf")
+    latin_path = Path("upstream/jetbrainsmono/JetBrainsMonoNL-Regular.ttf")
+    symbol_path = Path("upstream/nerd-fonts/JetBrainsMonoNerdFontMono-Regular.ttf")
     cjk_path = Path("upstream/pretendard/Pretendard-Regular.ttf")
-    if not latin_path.exists() or not cjk_path.exists():
+    if not latin_path.exists() or not symbol_path.exists() or not cjk_path.exists():
         pytest.skip("upstream fonts have not been downloaded")
 
     output_path = tmp_path / "Jetendard-Regular.ttf"
@@ -265,8 +267,9 @@ def test_integration_merge_skips_without_upstream_fonts(tmp_path: Path) -> None:
         latin_path=latin_path,
         cjk_path=cjk_path,
         output_path=output_path,
-        family_name="Jetendard",
+        family_name="JetBrainsMono Potato",
         subfamily_name="Regular",
+        symbol_path=symbol_path,
     )
 
     font = TTFont(str(output_path))
@@ -274,9 +277,11 @@ def test_integration_merge_skips_without_upstream_fonts(tmp_path: Path) -> None:
     features = [record.FeatureTag for record in font["GSUB"].table.FeatureList.FeatureRecord]
     assert stats.copied_count > 10_000
     assert font["hmtx"].metrics[cmap[ord("가")]][0] == font["hmtx"].metrics[cmap[ord("A")]][0] * 2
-    assert font["name"].getName(1, 3, 1, 0x409).toUnicode() == "Jetendard"
+    assert font["name"].getName(1, 3, 1, 0x409).toUnicode() == "JetBrainsMono Potato"
     assert font["post"].isFixedPitch == 1
-    assert "calt" in features
+    assert cmap[0xE0B0]
+    assert "liga" not in features
+    assert "calt" not in features
     assert "ccmp" in features
     font.close()
 
@@ -284,8 +289,9 @@ def test_integration_merge_skips_without_upstream_fonts(tmp_path: Path) -> None:
 def test_integration_merge_italic_metadata_skips_without_upstream_fonts(tmp_path: Path) -> None:
     variant = make_font_variant("Regular", "italic")
     latin_path = Path("upstream/jetbrainsmono") / variant.latin_filename
+    symbol_path = Path("upstream/nerd-fonts") / variant.nerd_filename
     cjk_path = Path("upstream/pretendard/Pretendard-Regular.ttf")
-    if not latin_path.exists() or not cjk_path.exists():
+    if not latin_path.exists() or not symbol_path.exists() or not cjk_path.exists():
         pytest.skip("upstream italic fonts have not been downloaded")
 
     output_path = tmp_path / "Jetendard-Italic.ttf"
@@ -293,8 +299,9 @@ def test_integration_merge_italic_metadata_skips_without_upstream_fonts(tmp_path
         latin_path=latin_path,
         cjk_path=cjk_path,
         output_path=output_path,
-        family_name="Jetendard",
+        family_name="JetBrainsMono Potato",
         subfamily_name=variant.subfamily_name,
+        symbol_path=symbol_path,
         typographic_subfamily_name=variant.typographic_subfamily_name,
         is_italic=variant.is_italic,
         css_weight=variant.css_weight,
@@ -306,10 +313,12 @@ def test_integration_merge_italic_metadata_skips_without_upstream_fonts(tmp_path
     assert stats.copied_count > 10_000
     assert font["hmtx"].metrics[cmap[ord("가")]][0] == font["hmtx"].metrics[cmap[ord("A")]][0] * 2
     assert font["name"].getName(2, 3, 1, 0x409).toUnicode() == "Italic"
-    assert font["name"].getName(6, 3, 1, 0x409).toUnicode() == "Jetendard-Italic"
+    assert font["name"].getName(6, 3, 1, 0x409).toUnicode() == "JetBrainsMonoPotato-Italic"
     assert font["head"].macStyle & (1 << 1)
     assert font["OS/2"].fsSelection & (1 << 0)
-    assert "calt" in features
+    assert cmap[0xE0B0]
+    assert "liga" not in features
+    assert "calt" not in features
     assert "ccmp" in features
     font.close()
 
@@ -321,9 +330,12 @@ def test_full_matrix_integration_when_enabled(tmp_path: Path) -> None:
     missing_sources: list[Path] = []
     for variant in DEFAULT_VARIANTS:
         latin_path = Path("upstream/jetbrainsmono") / variant.latin_filename
+        symbol_path = Path("upstream/nerd-fonts") / variant.nerd_filename
         cjk_path = Path("upstream/pretendard") / f"Pretendard-{variant.cjk_weight_name}.ttf"
         if not latin_path.exists():
             missing_sources.append(latin_path)
+        if not symbol_path.exists():
+            missing_sources.append(symbol_path)
         if not cjk_path.exists():
             missing_sources.append(cjk_path)
     if missing_sources:
@@ -332,13 +344,15 @@ def test_full_matrix_integration_when_enabled(tmp_path: Path) -> None:
 
     for variant in DEFAULT_VARIANTS:
         latin_path = Path("upstream/jetbrainsmono") / variant.latin_filename
+        symbol_path = Path("upstream/nerd-fonts") / variant.nerd_filename
         cjk_path = Path("upstream/pretendard") / f"Pretendard-{variant.cjk_weight_name}.ttf"
-        output_path = tmp_path / f"Jetendard-{variant.output_suffix}.ttf"
+        output_path = tmp_path / f"JetBrainsMonoPotato-{variant.output_suffix}.ttf"
         merge_fonts(
             latin_path=latin_path,
             cjk_path=cjk_path,
             output_path=output_path,
-            family_name="Jetendard",
+            family_name="JetBrainsMono Potato",
+            symbol_path=symbol_path,
             subfamily_name=variant.subfamily_name,
             typographic_subfamily_name=variant.typographic_subfamily_name,
             is_italic=variant.is_italic,
