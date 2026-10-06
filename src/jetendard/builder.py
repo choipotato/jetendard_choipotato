@@ -465,10 +465,18 @@ def merge_os2_ranges(target_font: TTFont, source_font: TTFont) -> None:
 
 
 def update_unicode_cmaps(font: TTFont, codepoint: int, glyph_name: str) -> None:
-    """Add a cmap entry to Unicode subtables that can carry normal mappings."""
+    """Add a cmap entry only to Unicode subtables that can encode the codepoint."""
     for table in font["cmap"].tables:
         if table.format == 14 or not table.isUnicode():
             continue
+
+        # cmap format 4 stores 16-bit character codes and cannot represent
+        # supplementary-plane Nerd Font codepoints above U+FFFF. JetBrains Mono
+        # also carries format 12 subtables, which are the correct destination
+        # for those mappings.
+        if codepoint > 0xFFFF and table.format not in (12, 13):
+            continue
+
         table.cmap[codepoint] = glyph_name
 
 
